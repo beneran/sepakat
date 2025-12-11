@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>SEPAKAT - Edit Template</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body class="bg-gray-100 font-sans">
+  <div class="flex h-screen overflow-hidden">
+    <%- include('partials/admin_sidebar', { page: 'templates' }) %>
+    
+    <div class="flex-1 flex flex-col overflow-hidden">
+      <header class="bg-white shadow-sm z-10 px-6 py-4 flex justify-between items-center">
+        <h1 class="text-2xl font-bold text-gray-800">Edit Template</h1>
+        <a href="/admin/templates" class="text-gray-500 hover:text-gray-700"><i class="fas fa-times"></i> Cancel</a>
+      </header>
+
+      <main class="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100 p-6">
+        <div class="max-w-4xl mx-auto bg-white rounded-xl shadow-sm p-6">
+          <form action="/admin/templates/<%= template._id %>" method="POST" id="matrixForm" class="space-y-6">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Template Name</label>
+              <input type="text" name="name" value="<%= template.name %>" required
+                     class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+            </div>
+            
+            <div id="components-container" class="space-y-4">
+              <!-- Components will be injected here by script -->
+            </div>
+
+            <button type="button" onclick="addParent()" 
+                    class="w-full py-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 hover:border-blue-500 hover:text-blue-500 transition flex items-center justify-center gap-2">
+              <i class="fas fa-layer-group"></i> Add Parent Component
+            </button>
+            
+            <div class="pt-6 border-t border-gray-100 flex justify-end gap-3">
+              <input type="hidden" name="jsonInput" id="jsonInput">
+              <button type="submit" onclick="prepareSubmission()" 
+                      class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg shadow transition">
+                Save Changes
+              </button>
+            </div>
+          </form>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <script>
+    let parentCount = 0;
+    const existingData = <%- JSON.stringify(template.components) %>;
+
+    function init() {
+      existingData.forEach(parent => {
+        const pId = addParent(parent.name);
+        parent.children.forEach(child => {
+          addChild(pId, child);
+        });
+      });
+    }
+
+    function addParent(name = '') {
+      parentCount++;
+      const container = document.getElementById('components-container');
+      const div = document.createElement('div');
+      div.className = 'parent-block bg-gray-50 rounded-lg border border-gray-200 p-4 relative group';
+      div.dataset.id = parentCount;
+      
+      div.innerHTML = `
+        <div class="flex justify-between items-center mb-3">
+          <input type="text" class="parent-name bg-transparent border-b border-gray-300 focus:border-blue-500 outline-none font-bold text-gray-700 placeholder-gray-400 w-2/3" placeholder="Parent Component Name" value="${name}" required>
+          <button type="button" onclick="this.closest('.parent-block').remove()" class="text-red-400 hover:text-red-600 transition">
+            <i class="fas fa-trash"></i>
+          </button>
+        </div>
+        
+        <div class="children-container space-y-2 pl-4 border-l-2 border-gray-200" id="children-container-${parentCount}">
+          <!-- Children go here -->
+        </div>
+        
+        <button type="button" onclick="addChild(${parentCount})" class="mt-3 text-sm text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1">
+          <i class="fas fa-plus"></i> Add Child
+        </button>
+      `;
+      
+      container.appendChild(div);
+      return parentCount;
+    }
+
+    function addChild(parentId, data = null) {
+      const container = document.getElementById(`children-container-${parentId}`);
+      const div = document.createElement('div');
+      div.className = 'child-block bg-white p-3 rounded border border-gray-200 shadow-sm flex flex-wrap gap-2 items-center';
+      
+      const name = data ? data.name : '';
+      const type = data ? data.type : 'rating';
+      const min = data && data.constraints ? data.constraints.min : 1;
+      const max = data && data.constraints ? data.constraints.max : 5;
+      
+      div.innerHTML = `
+        <input type="text" class="child-name flex-1 min-w-[150px] px-2 py-1 border border-gray-300 rounded text-sm focus:border-blue-500 outline-none" placeholder="Child Name" value="${name}" required>
+        
+        <select class="child-type px-2 py-1 border border-gray-300 rounded text-sm focus:border-blue-500 outline-none bg-gray-50" onchange="toggleConstraints(this)">
+          <option value="rating" ${type === 'rating' ? 'selected' : ''}>Rating (1-N)</option>
+          <option value="range" ${type === 'range' ? 'selected' : ''}>Range (0-100)</option>
+          <option value="text" ${type === 'text' ? 'selected' : ''}>Text</option>
+        </select>
+        
+        <div class="constraints flex gap-1 items-center" style="display: ${type === 'text' ? 'none' : 'flex'}">
+          <input type="number" class="min-val w-16 px-2 py-1 border border-gray-300 rounded text-sm" placeholder="Min" value="${min}">
+          <span class="text-gray-400">-</span>
+          <input type="number" class="max-val w-16 px-2 py-1 border border-gray-300 rounded text-sm" placeholder="Max" value="${max}">
+        </div>
+        
+        <button type="button" onclick="this.closest('.child-block').remove()" class="text-gray-400 hover:text-red-500 ml-1">
+          <i class="fas fa-times"></i>
+        </button>
+      `;
+      
+      container.appendChild(div);
+    }
+
+    function toggleConstraints(selectElem) {
+      const constraintsDiv = selectElem.nextElementSibling;
+      if (selectElem.value === 'text') {
+        constraintsDiv.style.display = 'none';
+      } else {
+        constraintsDiv.style.display = 'flex';
+      }
+    }
+
+    function prepareSubmission() {
+      const form = document.getElementById('matrixForm');
+      const name = form.querySelector('input[name="name"]').value;
+      const parentBlocks = document.querySelectorAll('.parent-block');
+      
+      const components = [];
+      
+      parentBlocks.forEach(pBlock => {
+        const pName = pBlock.querySelector('.parent-name').value;
+        const children = [];
+        
+        pBlock.querySelectorAll('.child-block').forEach(cBlock => {
+          const cName = cBlock.querySelector('.child-name').value;
+          const cType = cBlock.querySelector('.child-type').value;
+          
+          const childObj = {
+            name: cName,
+            type: cType,
+            constraints: {}
+          };
+          
+          if (cType !== 'text') {
+            childObj.constraints.min = parseInt(cBlock.querySelector('.min-val').value) || 0;
+            childObj.constraints.max = parseInt(cBlock.querySelector('.max-val').value) || 0;
+          }
+          
+          children.push(childObj);
+        });
+        
+        if (pName) {
+          components.push({
+            name: pName,
+            children: children
+          });
+        }
+      });
+      
+      const finalObj = {
+        name: name,
+        components: components
+      };
+      
+      document.getElementById('jsonInput').value = JSON.stringify(finalObj);
+    }
+
+    // Initialize form with existing data
+    init();
+  </script>
+</body>
+</html>

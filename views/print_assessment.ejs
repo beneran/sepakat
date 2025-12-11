@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Assessment Report - <%= assessment.candidate.nama %></title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @page {
+      size: A4;
+      margin: 1.5cm;
+    }
+    @media print {
+      body { 
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        max-width: 100%;
+      }
+      .max-w-4xl {
+        max-width: 100%;
+      }
+      .page-break-before {
+        page-break-before: always;
+      }
+      .no-print {
+        display: none !important;
+      }
+      h2, h3 {
+        page-break-after: avoid;
+      }
+      table {
+        page-break-inside: avoid;
+      }
+    }
+  </style>
+</head>
+<body class="bg-white font-sans max-w-4xl mx-auto">
+  
+  <div class="p-6">
+  <div class="flex justify-between items-start mb-8 border-b-2 border-gray-800 pb-6">
+    <div>
+      <h1 class="text-3xl font-bold text-gray-900 mb-2">Assessment Report</h1>
+      <p class="text-gray-600">SEPAKAT - Sistem Evaluasi Penilaian Kinerja Terpadu</p>
+    </div>
+    <div class="text-right">
+      <div class="text-sm text-gray-500">Date</div>
+      <div class="font-medium"><%= new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) %></div>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-2 gap-8 mb-8 bg-gray-50 p-6 rounded-lg border border-gray-200">
+    <div>
+      <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Candidate</h3>
+      <div class="text-lg font-bold text-gray-900"><%= assessment.candidate.nama %></div>
+      <div class="text-gray-600"><%= assessment.candidate.jabatan %></div>
+      <div class="text-sm text-gray-500 mt-1"><%= assessment.candidate.nip || 'NIP: -' %></div>
+    </div>
+    <div>
+      <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Main Reviewer</h3>
+      <div class="text-lg font-bold text-gray-900"><%= assessment.mainReviewer.nama %></div>
+      <div class="text-gray-600"><%= assessment.mainReviewer.jabatan %></div>
+    </div>
+  </div>
+
+  <div class="mb-8">
+    <h2 class="text-xl font-bold text-gray-800 mb-4">Assessment Matrix: <%= assessment.template.name %></h2>
+    
+    <div class="border border-gray-300 rounded-lg overflow-hidden">
+      <table class="w-full text-left border-collapse">
+        <thead>
+          <tr class="bg-gray-100 border-b border-gray-300">
+            <th class="p-3 font-bold text-gray-700 w-2/3">Component</th>
+            <th class="p-3 font-bold text-gray-700 text-right">Score</th>
+          </tr>
+        </thead>
+        <tbody>
+           <% 
+             const activeScores = assessment.mainAssessment && assessment.mainAssessment.scores ? assessment.mainAssessment.scores : [];
+             let totalScore = 0;
+             let parentCount = 0;
+           %>
+           <% assessment.template.components.forEach(parent => { %>
+             <% 
+                let pSum = 0;
+                let cCount = 0;
+                parent.children.forEach(child => {
+                   const score = activeScores.find(s => s.componentId.toString() === child._id.toString());
+                   if(score && !isNaN(parseFloat(score.value))) {
+                       pSum += parseFloat(score.value);
+                       cCount++;
+                   }
+                });
+               const pAvg = cCount > 0 ? (pSum / cCount).toFixed(2) : '0.00';
+               if(cCount > 0) {
+                   totalScore += parseFloat(pAvg);
+                   parentCount++;
+               }
+            %>
+            <tr class="bg-gray-50 border-b border-gray-200">
+              <td class="p-3 font-bold text-gray-800"><%= parent.name %></td>
+              <td class="p-3 font-bold text-gray-800 text-right bg-gray-100"><%= pAvg %></td>
+            </tr>
+            
+            <% parent.children.forEach(child => { %>
+              <% 
+                 const score = assessment.mainAssessment && assessment.mainAssessment.scores 
+                    ? assessment.mainAssessment.scores.find(s => s.componentId.toString() === child._id.toString()) 
+                    : null;
+              %>
+              <tr class="border-b border-gray-100">
+                <td class="p-3 pl-8 text-gray-600 text-sm"><%= child.name %></td>
+                <td class="p-3 text-gray-900 text-right font-mono"><%= score ? score.value : '-' %></td>
+              </tr>
+            <% }) %>
+          <% }) %>
+        </tbody>
+        <tfoot>
+          <% 
+             const finalScore = parentCount > 0 ? (totalScore / parentCount) : 0;
+             const resolvedFinalScore = (typeof assessment.finalScore === 'number' && !isNaN(assessment.finalScore))
+               ? assessment.finalScore
+               : finalScore;
+             let recommendation = '-';
+             let label = '-';
+             
+             if (assessment.weightMatrix && assessment.weightMatrix.grades) {
+                 const sortedGrades = [...assessment.weightMatrix.grades].sort((a, b) => b.min - a.min);
+                 const grade = sortedGrades.find(g => {
+                   const minOperator = g.minOperator || '>=';
+                   const maxOperator = g.maxOperator || '<=';
+                   let minMatch = minOperator === '>=' ? resolvedFinalScore >= g.min : resolvedFinalScore > g.min;
+                   let maxMatch = maxOperator === '<=' ? resolvedFinalScore <= g.max : resolvedFinalScore < g.max;
+                   return minMatch && maxMatch;
+                 });
+                 if (grade) {
+                     recommendation = grade.recommendation;
+                     label = grade.label;
+                 }
+             }
+           %>
+           <tr class="bg-gray-800 text-white">
+             <td class="p-4 font-bold uppercase">Final Score</td>
+             <td class="p-4 font-bold text-right text-xl">
+               <%= resolvedFinalScore.toFixed(2) %>
+             </td>
+           </tr>
+        </tfoot>
+      </table>
+    </div>
+  </div>
+
+  <div class="mb-8 bg-blue-50 p-6 rounded-lg border border-blue-100">
+    <h3 class="text-sm font-bold text-blue-800 uppercase tracking-wider mb-2">Conclusion & Recommendation</h3>
+    <div class="flex justify-between items-center">
+        <div>
+            <div class="text-2xl font-bold text-gray-900"><%= label %></div>
+            <div class="text-gray-600"><%= recommendation %></div>
+        </div>
+        <% if (assessment.adminPeerInput && assessment.adminPeerInput.feedback) { %>
+        <div class="text-right max-w-md">
+            <div class="text-xs text-gray-500 uppercase mb-1">Peer Feedback</div>
+            <div class="text-sm text-gray-700 italic">"<%= assessment.adminPeerInput.feedback %>"</div>
+            <% if (assessment.adminPeerInput.approved !== null && assessment.adminPeerInput.approved !== undefined) { %>
+              <div class="mt-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold <%= assessment.adminPeerInput.approved ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700' %>">
+                <i class="<%= assessment.adminPeerInput.approved ? 'fas fa-check mr-1' : 'fas fa-times mr-1' %>"></i>
+                <span><%= assessment.adminPeerInput.approved ? 'Disetujui' : 'Tidak Disetujui' %></span>
+              </div>
+            <% } %>
+        </div>
+        <% } %>
+    </div>
+  </div>
+
+  <!-- Feedback & Notes Section -->
+  <div class="mb-8 space-y-4">
+    <h2 class="text-lg font-bold text-gray-800 mb-4">Feedback & Notes</h2>
+    
+    <% if (assessment.adminPeerInput && assessment.adminPeerInput.feedback) { %>
+    <div class="border-l-4 border-blue-500 bg-blue-50 p-4 rounded">
+      <div class="flex items-start justify-between mb-2">
+        <div>
+          <h4 class="font-bold text-gray-800 text-sm">Testimoni Peer Reviewer</h4>
+          <p class="text-xs text-gray-500"><%= assessment.adminPeer.nama %> (<%= assessment.adminPeer.jabatan %>)</p>
+        </div>
+        <% if (assessment.adminPeerInput.approved !== null && assessment.adminPeerInput.approved !== undefined) { %>
+          <span class="px-2 py-1 rounded text-xs font-semibold <%= assessment.adminPeerInput.approved ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700' %>">
+            <%= assessment.adminPeerInput.approved ? 'Setuju' : 'Tidak Setuju' %>
+          </span>
+        <% } %>
+      </div>
+      <p class="text-sm text-gray-700"><%= assessment.adminPeerInput.feedback %></p>
+    </div>
+    <% } %>
+
+    <% if (assessment.mainAssessment && assessment.mainAssessment.note) { %>
+    <div class="border-l-4 border-green-500 bg-green-50 p-4 rounded">
+      <div class="mb-2">
+        <h4 class="font-bold text-gray-800 text-sm">Catatan Pejabat Penilai</h4>
+        <p class="text-xs text-gray-500"><%= assessment.mainReviewer.nama %> (<%= assessment.mainReviewer.jabatan %>)</p>
+      </div>
+      <p class="text-sm text-gray-700"><%= assessment.mainAssessment.note %></p>
+    </div>
+    <% } %>
+
+    <% if (assessment.validatorNote) { %>
+    <div class="border-l-4 border-purple-500 bg-purple-50 p-4 rounded">
+      <div class="mb-2">
+        <h4 class="font-bold text-gray-800 text-sm">Catatan Validator</h4>
+        <p class="text-xs text-gray-500"><%= assessment.validator.nama %> (<%= assessment.validator.jabatan %>)</p>
+      </div>
+      <p class="text-sm text-gray-700"><%= assessment.validatorNote %></p>
+    </div>
+    <% } %>
+  </div>
+
+  <div class="mt-8">
+    <%
+      const hasValidator = !!assessment.validator;
+      const hasAdminPeer = !!assessment.adminPeer;
+    %>
+    
+    <h3 class="text-sm font-bold text-gray-700 uppercase tracking-wider mb-6">Approval Signatures</h3>
+    
+    <% if (hasValidator) { %>
+      <!-- 3 Roles: 2 on top, 1 centered below -->
+      <div class="space-y-6">
+        <div class="grid grid-cols-2 gap-8 text-center">
+          <% if (assessment.adminPeer) { %>
+          <div>
+            <p class="text-gray-700 font-semibold text-sm">Peer Reviewer</p>
+            <p class="text-gray-600 text-xs"><%= assessment.adminPeer.jabatan %></p>
+            <div class="min-h-10 flex items-center justify-center">
+              <% if (assessment.adminPeerInput && assessment.adminPeerInput.approved === true) { %>
+                <p class="text-blue-600 text-xs italic">Signed by System on <%= assessment.adminPeerInput.submittedAt ? new Date(assessment.adminPeerInput.submittedAt).toLocaleDateString('id-ID', { year: 'numeric', month: 'short', day: 'numeric' }) : 'N/A' %></p>
+              <% } %>
+            </div>
+            <p class="font-bold text-gray-900 text-sm"><%= assessment.adminPeer.nama %></p>
+            <p class="text-gray-600 text-xs">NIP <%= assessment.adminPeer.nip || '-' %></p>
+          </div>
+          <% } %>
+
+          <div>
+            <p class="text-gray-700 font-semibold text-sm">Pejabat Penilai</p>
+            <p class="text-gray-600 text-xs"><%= assessment.mainReviewer.jabatan %></p>
+            <div class="min-h-10 flex items-center justify-center">
+              <% if (assessment.mainAssessment && assessment.mainAssessment.submittedAt) { %>
+                <p class="text-blue-600 text-xs italic">Signed by System on <%= new Date(assessment.mainAssessment.submittedAt).toLocaleDateString('id-ID', { year: 'numeric', month: 'short', day: 'numeric' }) %></p>
+              <% } %>
+            </div>
+            <p class="font-bold text-gray-900 text-sm"><%= assessment.mainReviewer.nama %></p>
+            <p class="text-gray-600 text-xs">NIP <%= assessment.mainReviewer.nip || '-' %></p>
+          </div>
+        </div>
+
+        <!-- Validator centered below -->
+        <div class="flex justify-center">
+          <div class="w-1/2 text-center">
+            <p class="text-gray-700 font-semibold text-sm">Validator</p>
+            <p class="text-gray-600 text-xs"><%= assessment.validator.jabatan %></p>
+            <div class="min-h-10 flex items-center justify-center">
+              <% if (assessment.validatorStatus === 'APPROVED') { %>
+                <p class="text-blue-600 text-xs italic">Signed by System on <%= new Date().toLocaleDateString('id-ID', { year: 'numeric', month: 'short', day: 'numeric' }) %></p>
+              <% } %>
+            </div>
+            <p class="font-bold text-gray-900 text-sm"><%= assessment.validator.nama %></p>
+            <p class="text-gray-600 text-xs">NIP <%= assessment.validator.nip || '-' %></p>
+          </div>
+        </div>
+      </div>
+    <% } else { %>
+      <!-- 2 Roles: side by side -->
+      <div class="grid grid-cols-2 gap-8 text-center">
+        <% if (assessment.adminPeer) { %>
+        <div>
+          <p class="text-gray-700 font-semibold text-sm">Peer Reviewer</p>
+          <p class="text-gray-600 text-xs"><%= assessment.adminPeer.jabatan %></p>
+          <div class="min-h-10 flex items-center justify-center">
+            <% if (assessment.adminPeerInput && assessment.adminPeerInput.approved === true) { %>
+              <p class="text-blue-600 text-xs italic">Signed by System on <%= assessment.adminPeerInput.submittedAt ? new Date(assessment.adminPeerInput.submittedAt).toLocaleDateString('id-ID', { year: 'numeric', month: 'short', day: 'numeric' }) : 'N/A' %></p>
+            <% } %>
+          </div>
+          <p class="font-bold text-gray-900 text-sm"><%= assessment.adminPeer.nama %></p>
+          <p class="text-gray-600 text-xs">NIP <%= assessment.adminPeer.nip || '-' %></p>
+        </div>
+        <% } else { %>
+          <div></div>
+        <% } %>
+
+        <div>
+          <p class="text-gray-700 font-semibold text-sm">Pejabat Penilai</p>
+          <p class="text-gray-600 text-xs"><%= assessment.mainReviewer.jabatan %></p>
+          <div class="min-h-10 flex items-center justify-center">
+            <% if (assessment.mainAssessment && assessment.mainAssessment.submittedAt) { %>
+              <p class="text-blue-600 text-xs italic">Signed by System on <%= new Date(assessment.mainAssessment.submittedAt).toLocaleDateString('id-ID', { year: 'numeric', month: 'short', day: 'numeric' }) %></p>
+            <% } %>
+          </div>
+          <p class="font-bold text-gray-900 text-sm"><%= assessment.mainReviewer.nama %></p>
+          <p class="text-gray-600 text-xs">NIP <%= assessment.mainReviewer.nip || '-' %></p>
+        </div>
+      </div>
+    <% } %>
+  </div>
+  </div>
+
+  <div class="fixed bottom-0 left-0 w-full p-4 bg-gray-900 text-white text-center no-print cursor-pointer hover:bg-gray-800 transition" onclick="window.print()">
+    <i class="fas fa-print mr-2"></i> Click here to Print / Save as PDF
+  </div>
+
+</body>
+</html>

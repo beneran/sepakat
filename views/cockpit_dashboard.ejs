@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>SEPAKAT - Cockpit</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body class="bg-gray-100 font-sans">
+  <div class="min-h-screen">
+    <!-- Navbar -->
+    <nav class="bg-white shadow-sm">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex justify-between h-16">
+          <div class="flex items-center gap-3">
+            <div class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+              <i class="fas fa-layer-group text-white text-sm"></i>
+            </div>
+            <span class="text-xl font-bold text-gray-800">SEPAKAT <span class="font-normal text-gray-500 text-sm">| Cockpit</span></span>
+          </div>
+          <div class="flex items-center gap-4">
+            <div class="text-right hidden sm:block">
+              <div class="text-sm font-medium text-gray-900"><%= user.nama %></div>
+              <div class="text-xs text-gray-500"><%= user.jabatan %></div>
+            </div>
+            <a href="/logout" class="text-gray-400 hover:text-red-500 transition">
+              <i class="fas fa-sign-out-alt text-xl"></i>
+            </a>
+          </div>
+        </div>
+      </div>
+    </nav>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      
+      <!-- Main Reviewer Section -->
+      <div class="mb-10">
+        <h2 class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+          <i class="fas fa-clipboard-list text-blue-600"></i> My Assignments (Main Reviewer)
+        </h2>
+        
+        <% if (mainAssessments.length === 0) { %>
+          <div class="bg-white rounded-xl shadow-sm p-8 text-center text-gray-400">
+            <i class="fas fa-folder-open text-4xl mb-3 opacity-30"></i>
+            <p>No assignments found.</p>
+          </div>
+        <% } else { %>
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <% mainAssessments.forEach(a => { %>
+              <div class="bg-white rounded-xl shadow-sm hover:shadow-md transition border border-gray-100 overflow-hidden group">
+                <div class="p-6">
+                  <div class="flex justify-between items-start mb-4">
+                    <div class="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 font-bold text-lg">
+                      <%= a.candidate.nama.charAt(0) %>
+                    </div>
+                    <span class="px-3 py-1 text-xs font-bold rounded-full 
+                      <%= a.status === 'COMPLETED' ? 'bg-green-100 text-green-700' : 
+                         a.status === 'IN_PROGRESS' ? 'bg-blue-100 text-blue-700' : 
+                         'bg-yellow-100 text-yellow-700' %>">
+                      <%= a.status.replace('_', ' ') %>
+                    </span>
+                  </div>
+                  
+                  <h3 class="text-lg font-bold text-gray-900 mb-1"><%= a.candidate.nama %></h3>
+                  <p class="text-sm text-gray-500 mb-4"><%= a.template.name %></p>
+                  
+                  <div class="flex items-center justify-between text-sm text-gray-500 border-t border-gray-50 pt-4">
+                    <span><i class="fas fa-users mr-1"></i> <%= a.peerReviewers.length %> Peers</span>
+                    <span><i class="fas fa-star mr-1"></i> <%= a.finalScore ? a.finalScore.toFixed(2) : '-' %></span>
+                  </div>
+                </div>
+                <a href="/cockpit/assessment/<%= a._id %>" class="block bg-gray-50 p-3 text-center text-blue-600 font-medium text-sm hover:bg-blue-50 transition group-hover:text-blue-700">
+                  Open Cockpit <i class="fas fa-arrow-right ml-1"></i>
+                </a>
+              </div>
+            <% }) %>
+          </div>
+        <% } %>
+      </div>
+
+      <!-- Peer Review Section -->
+      <div class="mb-10">
+        <h2 class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+          <i class="fas fa-user-friends text-purple-600"></i> Peer Review Requests (Input Score)
+        </h2>
+        
+        <% if (peerAssessments.length === 0) { %>
+          <div class="bg-white rounded-xl shadow-sm p-8 text-center text-gray-400">
+            <p>No peer review requests.</p>
+          </div>
+        <% } else { %>
+          <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+            <div class="divide-y divide-gray-100">
+              <% peerAssessments.forEach(a => { %>
+                <div class="p-6 flex items-center justify-between hover:bg-gray-50 transition">
+                  <div class="flex items-center gap-4">
+                    <div class="w-10 h-10 rounded-full bg-purple-50 flex items-center justify-center text-purple-600 font-bold">
+                      <%= a.candidate.nama.charAt(0) %>
+                    </div>
+                    <div>
+                      <h3 class="font-medium text-gray-900"><%= a.candidate.nama %></h3>
+                      <p class="text-sm text-gray-500">Requested by: <%= a.mainReviewer ? a.mainReviewer.nama : 'Unknown' %></p>
+                    </div>
+                  </div>
+                  
+                  <% 
+                    const myAssessment = a.peerAssessments.find(pa => pa.reviewer.toString() === user._id.toString());
+                    const isDone = !!myAssessment;
+                  %>
+                  
+                  <div class="flex items-center gap-4">
+                    <% if (isDone) { %>
+                      <span class="text-green-600 text-sm font-medium"><i class="fas fa-check mr-1"></i> Submitted</span>
+                    <% } else { %>
+                      <span class="text-yellow-600 text-sm font-medium"><i class="fas fa-clock mr-1"></i> Pending</span>
+                    <% } %>
+                    
+                    <a href="/cockpit/assessment/<%= a._id %>" class="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 text-sm font-medium hover:bg-white hover:border-purple-500 hover:text-purple-600 transition">
+                      <%= isDone ? 'Edit Review' : 'Start Review' %>
+                    </a>
+                  </div>
+                </div>
+              <% }) %>
+            </div>
+          </div>
+        <% } %>
+      </div>
+
+      <!-- Validator & Admin Peer Section -->
+      <% if (validatorAssessments.length > 0 || adminPeerAssessments.length > 0) { %>
+      <div>
+        <h2 class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+          <i class="fas fa-signature text-orange-600"></i> Validation & Signatures
+        </h2>
+        
+        <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+          <div class="divide-y divide-gray-100">
+            <% validatorAssessments.forEach(a => { %>
+              <div class="p-6 flex items-center justify-between hover:bg-gray-50 transition">
+                <div class="flex items-center gap-4">
+                  <div class="w-10 h-10 rounded-full bg-orange-50 flex items-center justify-center text-orange-600 font-bold">
+                    <i class="fas fa-check-double"></i>
+                  </div>
+                  <div>
+                    <h3 class="font-medium text-gray-900"><%= a.candidate.nama %></h3>
+                    <p class="text-sm text-gray-500">Role: Validator (Read Only)</p>
+                  </div>
+                </div>
+                <a href="/cockpit/assessment/<%= a._id %>" class="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 text-sm font-medium hover:bg-white hover:border-orange-500 hover:text-orange-600 transition">
+                  View Assessment
+                </a>
+              </div>
+            <% }) %>
+
+            <% adminPeerAssessments.forEach(a => { %>
+              <div class="p-6 flex items-center justify-between hover:bg-gray-50 transition">
+                <div class="flex items-center gap-4">
+                  <div class="w-10 h-10 rounded-full bg-orange-50 flex items-center justify-center text-orange-600 font-bold">
+                    <i class="fas fa-pen-nib"></i>
+                  </div>
+                  <div>
+                    <h3 class="font-medium text-gray-900"><%= a.candidate.nama %></h3>
+                    <p class="text-sm text-gray-500">Role: Admin Peer (Text Input)</p>
+                  </div>
+                </div>
+                <a href="/cockpit/assessment/<%= a._id %>" class="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 text-sm font-medium hover:bg-white hover:border-orange-500 hover:text-orange-600 transition">
+                  Provide Feedback
+                </a>
+              </div>
+            <% }) %>
+          </div>
+        </div>
+      </div>
+      <% } %>
+      
+    </main>
+  </div>
+</body>
+</html>

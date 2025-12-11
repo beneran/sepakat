@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>SEPAKAT - Assessment Cockpit</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <link href="https://cdn.jsdelivr.net/npm/tom-select/dist/css/tom-select.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/tom-select/dist/js/tom-select.complete.min.js"></script>
+  <style>
+    /* Custom overrides if needed */
+    .range-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 20px;
+      height: 20px;
+      background: #3b82f6;
+      cursor: pointer;
+      border-radius: 50%;
+    }
+  </style>
+</head>
+<body class="bg-gray-50 h-screen flex flex-col overflow-hidden">
+  <!-- Toast Notification -->
+  <div id="toast" class="fixed top-5 right-5 bg-green-500 text-white px-6 py-3 rounded shadow-lg transform translate-x-full transition-transform duration-300 z-50 hidden">
+    <i class="fas fa-check-circle mr-2"></i> <span id="toast-message">Success</span>
+  </div>
+
+  <div class="bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center shadow-sm z-10">
+    <div>
+      <h2 class="text-xl font-bold text-gray-800 flex items-center gap-2">
+        <i class="fas fa-tachometer-alt text-blue-600"></i> Assessment Cockpit
+      </h2>
+      <p class="text-sm text-gray-500 mt-1">
+        Candidate: <span class="font-medium text-gray-900"><%= assessment.candidate.nama %></span> | 
+        Template: <span class="font-medium text-gray-900"><%= assessment.template.name %></span>
+      </p>
+    </div>
+    <div class="flex gap-3">
+       <div class="text-right mr-4">
+          <div class="text-xs text-gray-500 uppercase tracking-wide">Current Score</div>
+          <div class="text-2xl font-bold text-blue-600" id="total-score-display"><%= initialScoreDisplay ? initialScoreDisplay.toFixed(2) : '0.00' %></div>
+       </div>
+       <% if (finalGrade) { %>
+       <div class="text-right">
+          <div class="text-xs text-gray-500 uppercase tracking-wide">Keputusan</div>
+          <div class="text-sm font-bold text-green-700"><%= finalGrade.label %></div>
+          <div class="text-xs text-gray-500 max-w-[180px]"><%= finalGrade.recommendation %></div>
+       </div>
+       <% } %>
+      <a href="/cockpit" class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg transition flex items-center gap-2">
+        <i class="fas fa-arrow-left"></i> Back
+      </a>
+      <a href="/cockpit/assessment/<%= assessment._id %>/print" target="_blank" class="bg-gray-800 hover:bg-gray-900 text-white px-4 py-2 rounded-lg transition flex items-center gap-2">
+        <i class="fas fa-print"></i> Print
+      </a>
+    </div>
+  </div>
+
+  <div class="flex flex-1 overflow-hidden">
+    <!-- Left Panel: Active Assessment Form -->
+    <div class="flex-1 overflow-y-auto p-6 bg-gray-50">
+
+      <% if (progressSteps && progressSteps.length) { %>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+        <% progressSteps.forEach((s, idx) => { %>
+          <% const done = s.done; const required = s.required !== false; %>
+          <div class="flex items-center gap-3 bg-white border border-gray-200 rounded-lg p-3 shadow-sm">
+            <div class="w-10 h-10 rounded-full flex items-center justify-center <%= done ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500' %>">
+              <%- done ? '<i class="fas fa-check"></i>' : idx + 1 %>
+            </div>
+            <div>
+              <div class="text-sm font-bold text-gray-800"><%= s.label %> <%= required ? '' : '(Opsional)' %></div>
+              <div class="text-xs <%= done ? 'text-green-600' : 'text-gray-500' %>">
+                <%= done ? 'Selesai' : 'Belum selesai' %>
+              </div>
+            </div>
+          </div>
+        <% }) %>
+      </div>
+      <% } %>
+      
+      <% if (assessment.weightMatrix && !isAdminPeer) { %>
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-4">
+        <div class="flex items-center justify-between mb-2">
+          <div>
+            <h3 class="font-bold text-gray-800 text-lg">Weight Matrix</h3>
+            <p class="text-sm text-gray-500"><%= assessment.weightMatrix.name %></p>
+          </div>
+        </div>
+        <div class="overflow-hidden border border-gray-100 rounded-lg">
+          <table class="w-full text-sm">
+            <thead class="bg-gray-50 text-gray-600">
+              <tr>
+                <th class="px-3 py-2 text-left">Range</th>
+                <th class="px-3 py-2 text-left">Label</th>
+                <th class="px-3 py-2 text-left">Rekomendasi</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% assessment.weightMatrix.grades.sort((a,b)=>b.min-a.min).forEach(g => { %>
+                <tr class="border-t border-gray-100">
+                  <td class="px-3 py-2 font-mono text-gray-700"><%= (g.minOperator || '>=') %> <%= g.min %> - <%= (g.maxOperator || '<=') %> <%= g.max %></td>
+                  <td class="px-3 py-2 font-bold text-gray-800"><%= g.label %></td>
+                  <td class="px-3 py-2 text-gray-600"><%= g.recommendation %></td>
+                </tr>
+              <% }) %>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <% } %>
+      
+      <% if (isAdminPeer) { %>
+        <!-- Admin Peer View: Text Input Only -->
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <h3 class="font-bold text-gray-800 text-lg mb-4">Admin Peer Feedback</h3>
+          <p class="text-gray-600 mb-4 text-sm">Please provide your general feedback or testimony for this candidate. This will be included in the final report.</p>
+          
+          <%
+            const mainSubmitted = assessment.mainAssessment && assessment.mainAssessment.submittedAt;
+            const validatorDecided = assessment.validatorStatus && assessment.validatorStatus !== 'PENDING';
+            const adminPeerLocked = (assessment.adminPeerInput && assessment.adminPeerInput.submittedAt) || validatorDecided;
+          %>
+
+          <% if (adminPeerLocked) { %>
+            <div class="mb-3 p-3 rounded bg-yellow-50 border border-yellow-100 text-sm text-yellow-800 flex items-center gap-2">
+              <i class="fas fa-lock"></i>
+              <span>Form dikunci karena jenjang berikutnya sudah diproses.</span>
+            </div>
+          <% } %>
+
+          <form action="/cockpit/assessment/<%= assessment._id %>/admin-peer-submit" method="POST">
+            <fieldset class="<%= adminPeerLocked ? 'opacity-70 pointer-events-none' : '' %>" <%= adminPeerLocked ? 'disabled' : '' %>>
+            <textarea name="feedback" class="w-full p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 h-48" placeholder="Write your feedback here..."><%= assessment.adminPeerInput ? assessment.adminPeerInput.feedback : '' %></textarea>
+            <div class="mt-4">
+              <div class="flex items-center justify-between">
+                <label class="block text-sm font-medium text-gray-700">Approval (Tanda Tangan)</label>
+                <% if (assessment.adminPeerInput && assessment.adminPeerInput.approved !== null && assessment.adminPeerInput.approved !== undefined) { %>
+                  <span class="text-xs font-semibold px-2 py-1 rounded-full <%= assessment.adminPeerInput.approved ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700' %>">
+                    <%= assessment.adminPeerInput.approved ? 'Disetujui' : 'Tidak Disetujui' %>
+                  </span>
+                <% } %>
+              </div>
+              <div class="flex gap-4 mt-2">
+                <label class="flex items-center text-sm text-gray-700">
+                  <input type="radio" name="approved" value="yes" class="mr-2" <%= assessment.adminPeerInput && assessment.adminPeerInput.approved === true ? 'checked' : '' %> required>
+                  Setuju
+                </label>
+                <label class="flex items-center text-sm text-gray-700">
+                  <input type="radio" name="approved" value="no" class="mr-2" <%= assessment.adminPeerInput && assessment.adminPeerInput.approved === false ? 'checked' : '' %> required>
+                  Tidak Setuju
+                </label>
+              </div>
+              <p class="text-xs text-gray-500 mt-1">Gunakan pilihan ini sebagai representasi tanda tangan/approval testimoni.</p>
+            </div>
+            <div class="mt-4 flex justify-end">
+              <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg shadow">
+                Save Feedback
+              </button>
+            </div>
+            </fieldset>
+          </form>
+        </div>
+      <% } else { %>
+        <!-- Main Reviewer, Validator, or Regular Peer View -->
+        <form action="/cockpit/assessment/<%= assessment._id %>/submit" method="POST" id="assessmentForm" onsubmit="return handleSubmit(event)">
+          
+         <% 
+             const mainSubmitted = assessment.mainAssessment && assessment.mainAssessment.submittedAt;
+             const validatorDecided = assessment.validatorStatus && assessment.validatorStatus !== 'PENDING';
+             const peerNotSubmitted = !peerStepDone && assessment.adminPeer; // Lock if peer required but not done
+             const isCompleted = assessment.status === 'COMPLETED' || mainSubmitted;
+             // Validator is ALWAYS read-only; once submitted or higher tier finished, lock
+             // Main reviewer locked if: validator submitted, or peer required but not done
+             const isReadOnly = isValidator || mainSubmitted || validatorDecided || (isMainReviewer && peerNotSubmitted);
+             const isDisabled = isReadOnly ? 'disabled' : '';
+             const disabledClass = isReadOnly ? 'opacity-80 pointer-events-none' : '';
+          %>
+
+          <% if (isReadOnly) { %>
+            <div class="mb-4 p-3 rounded bg-yellow-50 border border-yellow-100 text-sm text-yellow-800 flex items-start gap-2">
+              <i class="fas fa-lock mt-0.5"></i>
+              <div>
+                <div class="font-semibold">Form terkunci</div>
+                <div>
+                  <% if (isValidator) { %>
+                    Nilai tidak dapat diedit kembali setelah divalidasi.
+                  <% } else if (isMainReviewer && peerNotSubmitted) { %>
+                    Testimoni peer harus diselesaikan terlebih dahulu sebelum pejabat penilai dapat memberikan nilai.
+                  <% } else if (isMainReviewer) { %>
+                    Nilai tidak dapat diedit kembali setelah disubmit atau setelah validator memproses.
+                  <% } else if (isPeerReviewer) { %>
+                    Nilai tidak dapat diedit kembali setelah disubmit atau setelah pejabat penilai memproses.
+                  <% } %>
+                </div>
+              </div>
+            </div>
+          <% } %>
+
+           <fieldset id="formFieldset" class="<%= disabledClass %> transition-opacity duration-300">
+           <% assessment.template.components.forEach((parent, pIndex) => { %>
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 mb-6 overflow-hidden parent-card">
+              <div class="bg-gray-50 px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+                <h3 class="font-bold text-gray-800 text-lg"><%= parent.name %></h3>
+                <div class="bg-blue-100 text-blue-800 text-sm font-medium px-3 py-1 rounded-full">
+                  Avg: <span id="avg-parent-<%= parent._id %>"><%= parentAverages[parent._id.toString()] || '0.00' %></span>
+                </div>
+              </div>
+              
+              <div class="p-6 space-y-6">
+                <% parent.children.forEach(child => { %>
+                  <div class="field-row group" data-parent-id="<%= parent._id %>">
+                    <label class="block text-sm font-medium text-gray-700 mb-2"><%= child.name %></label>
+                    
+                    <% 
+                      // Find existing value
+                      let existingVal = '';
+                      // If Validator, show Main Reviewer's score
+                      let targetAssessment = isValidator ? assessment.mainAssessment : (isMainReviewer ? assessment.mainAssessment : assessment.peerAssessments.find(p => p.reviewer.equals(currentUser._id)));
+                      
+                      if (targetAssessment && targetAssessment.scores) {
+                        const score = targetAssessment.scores.find(s => s.componentId.toString() === child._id.toString());
+                        if (score) existingVal = score.value;
+                      }
+                    %>
+  
+                    <% if (child.type === 'rating') { %>
+                      <div class="flex items-center gap-4">
+                        <div class="flex-1">
+                          <input type="range" name="scores[<%= child._id %>]" 
+                                  class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer range-slider input-score"
+                                  min="<%= child.constraints.min || 1 %>" 
+                                  max="<%= child.constraints.max || 5 %>" 
+                                  step="1"
+                                  value="<%= existingVal !== '' ? existingVal : (child.constraints.min || 1) %>" 
+                                  data-set="<%= existingVal !== '' ? 'true' : 'false' %>"
+                                  oninput="updateOutput(this); calculateAverages();"
+                                  <%= isDisabled %>>
+                          <div class="flex justify-between text-xs text-gray-400 mt-1">
+                            <span><%= child.constraints.min || 1 %></span>
+                            <span><%= child.constraints.max || 5 %></span>
+                          </div>
+                        </div>
+                         <div class="w-12 h-12 rounded-lg bg-blue-50 flex items-center justify-center border border-blue-100">
+                           <span class="text-lg font-bold text-blue-600 output-val"><%= existingVal !== '' ? existingVal : 0 %></span>
+                         </div>
+                       </div>
+                     <% } else if (child.type === 'range') { %>
+                        <div class="flex items-center gap-4">
+                         <div class="flex-1">
+                           <input type="range" name="scores[<%= child._id %>]" 
+                                  class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer range-slider input-score"
+                                  min="<%= child.constraints.min || 0 %>" 
+                                  max="<%= child.constraints.max || 100 %>" 
+                                  value="<%= existingVal !== '' ? existingVal : (child.constraints.min || 0) %>" 
+                                  data-set="<%= existingVal !== '' ? 'true' : 'false' %>"
+                                  oninput="updateOutput(this); calculateAverages();"
+                                  <%= isDisabled %>>
+                         </div>
+                         <div class="w-16 h-10 rounded bg-gray-100 flex items-center justify-center border border-gray-200">
+                           <span class="font-mono font-bold text-gray-700 output-val"><%= existingVal !== '' ? existingVal : 0 %></span>
+                         </div>
+                       </div>
+                    <% } else { %>
+                      <textarea name="scores[<%= child._id %>]" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition" rows="2" <%= isDisabled %>><%= existingVal %></textarea>
+                    <% } %>
+                  </div>
+                <% }) %>
+              </div>
+            </div>
+          <% }) %>
+          
+          <!-- Note Section -->
+          <div class="bg-white rounded-xl shadow-sm border border-gray-200 mb-6 p-6">
+            <h3 class="font-bold text-gray-800 text-lg mb-4">General Note / Testimony</h3>
+            <% 
+               let existingNote = '';
+               if (isValidator) existingNote = assessment.mainReviewerNote;
+               else if (isMainReviewer) existingNote = assessment.mainReviewerNote;
+               else {
+                 const myPeerAssessment = assessment.peerAssessments.find(p => p.reviewer.equals(currentUser._id));
+                 if (myPeerAssessment) existingNote = myPeerAssessment.note;
+               }
+            %>
+            <textarea name="note" class="w-full p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 h-32" placeholder="Add any additional comments or testimony here..." <%= isDisabled %>><%= existingNote %></textarea>
+          </div>
+
+          </fieldset>
+  
+          <% if (!isValidator) { %>
+          <div class="sticky bottom-0 bg-white border-t border-gray-200 p-4 -mx-6 -mb-6 mt-8 flex justify-end shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] z-30">
+            <button type="submit" id="submitBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg shadow-lg transform transition hover:-translate-y-0.5 flex items-center gap-2 <%= isDisabled ? 'hidden' : '' %>">
+              <i class="fas fa-save"></i> Submit Assessment
+            </button>
+          </div>
+          <% } %>
+        </form>
+
+        <% if (isValidator) { %>
+          <div class="bg-white rounded-xl shadow-sm border border-gray-200 mt-6 p-6">
+            <h3 class="font-bold text-gray-800 text-lg mb-4 flex items-center gap-2">
+              <i class="fas fa-check-double text-purple-600"></i> Validator Action
+            </h3>
+            <% const mainReviewerNotSubmitted = !mainStepDone; %>
+            <% const validatorLocked = assessment.validatorStatus !== 'PENDING' || mainReviewerNotSubmitted; %>
+            
+            <% if (mainReviewerNotSubmitted) { %>
+              <div class="mb-4 p-4 rounded bg-red-50 border border-red-200 text-red-700 flex items-start gap-3">
+                <i class="fas fa-exclamation-circle mt-1"></i>
+                <div>
+                  <div class="font-semibold">Tidak dapat memvalidasi</div>
+                  <div class="text-sm">Pejabat penilai belum menyelesaikan penilaian. Tunggu sampai penilaian utama selesai sebelum validator dapat memproses.</div>
+                </div>
+              </div>
+            <% } %>
+            
+            <% if (assessment.adminPeer && assessment.adminPeerInput) { %>
+              <div class="mb-4 p-4 rounded bg-blue-50 border border-blue-200 text-blue-800">
+                <div class="flex items-start gap-3">
+                  <i class="fas fa-comment mt-1 text-blue-600"></i>
+                  <div class="flex-1">
+                    <div class="font-semibold text-sm mb-2 flex items-center gap-2">
+                      Admin Peer Feedback
+                      <span class="text-xs font-bold px-2 py-0.5 rounded <%= assessment.adminPeerInput.approved ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700' %>">
+                        <%= assessment.adminPeerInput.approved ? 'Approved' : 'Not Approved' %>
+                      </span>
+                    </div>
+                    <% if (assessment.adminPeerInput.feedback) { %>
+                    <div class="text-sm text-blue-900 bg-white rounded p-2 mt-1 max-h-24 overflow-y-auto">
+                      <%= assessment.adminPeerInput.feedback %>
+                    </div>
+                    <% } %>
+                  </div>
+                </div>
+              </div>
+            <% } %>
+            
+            <form action="/cockpit/assessment/<%= assessment._id %>/validator-action" method="POST" class="space-y-4" id="validatorForm" onsubmit="return confirmValidatorAction('<%= assessment.validatorStatus %>');">
+              <fieldset id="validatorFieldset" class="<%= validatorLocked ? 'opacity-70 pointer-events-none' : '' %>" <%= validatorLocked ? 'disabled' : '' %>>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Validator Note</label>
+                  <textarea name="note" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500" rows="3" placeholder="Enter your validation notes..."><%= assessment.validatorNote %></textarea>
+                </div>
+                <div class="flex gap-4">
+                  <button type="submit" name="action" value="approve" class="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg shadow transition flex justify-center items-center gap-2" <%= validatorLocked ? 'disabled' : '' %>>
+                    <i class="fas fa-check"></i> Approve
+                  </button>
+                  <button type="submit" name="action" value="reject" class="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-4 rounded-lg shadow transition flex justify-center items-center gap-2" <%= validatorLocked ? 'disabled' : '' %>>
+                    <i class="fas fa-times"></i> Reject
+                  </button>
+                </div>
+              </fieldset>
+              <% if (assessment.validatorStatus !== 'PENDING' && !mainReviewerNotSubmitted) { %>
+                <div class="mt-2 p-3 rounded bg-yellow-50 border border-yellow-100 text-sm text-yellow-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <span class="font-semibold">Status saat ini: <span class="<%= assessment.validatorStatus === 'APPROVED' ? 'text-green-700' : 'text-red-700' %>"><%= assessment.validatorStatus %></span></span>
+                  <button type="button" id="enableValidatorBtn" class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-4 rounded-lg shadow transition" onclick="enableValidatorEdit()">
+                    <i class="fas fa-edit"></i> Edit Status
+                  </button>
+                </div>
+              <% } %>
+            </form>
+          </div>
+        <% } %>
+
+      <% } %>
+    </div>
+
+    <!-- Right Panel: Reference (Only for Main Reviewer) -->
+    <% if (isMainReviewer) { %>
+      <div class="w-96 bg-white border-l border-gray-200 flex flex-col shadow-xl z-20">
+        <div class="p-4 border-b border-gray-200 bg-gray-50">
+          <h3 class="font-bold text-gray-700 mb-3 flex items-center gap-2">
+            <i class="fas fa-users"></i> Peer Reviews
+          </h3>
+          
+          <!-- Peer List Management -->
+          <div class="mb-4 space-y-2">
+            <% assessment.peerReviewers.forEach(peer => { %>
+              <div class="flex justify-between items-center bg-white p-2 rounded border border-gray-200 text-sm">
+                <span class="text-gray-700"><%= peer.nama %></span>
+                <form action="/cockpit/assessment/<%= assessment._id %>/remove-peer" method="POST" onsubmit="return confirm('Remove this peer reviewer?');">
+                  <input type="hidden" name="peerId" value="<%= peer._id %>">
+                  <button type="submit" class="text-red-400 hover:text-red-600 px-2">
+                    <i class="fas fa-times"></i>
+                  </button>
+                </form>
+              </div>
+            <% }) %>
+          </div>
+
+          <form action="/cockpit/assessment/<%= assessment._id %>/assign-peer" method="POST" class="flex gap-2">
+            <div class="relative flex-1">
+              <select name="peerId" class="search-select w-full">
+                <option value="">Add Peer...</option>
+                <% allUsers.filter(u => u._id.toString() !== currentUser._id.toString() && u._id.toString() !== assessment.candidate._id.toString() && !assessment.peerReviewers.some(p => p._id.equals(u._id))).forEach(u => { %>
+                  <option value="<%= u._id %>"><%= u.nama %></option>
+                <% }) %>
+              </select>
+            </div>
+            <button type="submit" class="bg-gray-800 hover:bg-gray-900 text-white px-3 py-2 rounded-lg text-sm transition h-[42px]">
+              <i class="fas fa-plus"></i>
+            </button>
+          </form>
+        </div>
+
+        <div class="flex-1 overflow-y-auto p-4 bg-gray-50">
+          <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Peer Submissions</h4>
+          
+          <% if (assessment.peerAssessments.length === 0) { %>
+            <div class="flex flex-col items-center justify-center h-40 text-gray-400 text-center p-6 border-2 border-dashed border-gray-200 rounded-lg">
+              <i class="fas fa-inbox text-3xl mb-3 opacity-50"></i>
+              <p class="text-sm">No submissions yet.</p>
+            </div>
+          <% } else { %>
+            <div class="space-y-4">
+              <% assessment.peerAssessments.forEach((pa, index) => { %>
+                <% const reviewer = assessment.peerReviewers.find(r => r._id.equals(pa.reviewer)); %>
+                
+                <!-- Accordion Item -->
+                <div class="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+                  <button onclick="toggleAccordion(<%= index %>)" class="w-full px-4 py-3 flex justify-between items-center bg-white hover:bg-gray-50 transition">
+                    <div class="flex items-center gap-3">
+                      <div class="w-8 h-8 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center font-bold text-xs">
+                        <%= reviewer ? reviewer.nama.charAt(0) : '?' %>
+                      </div>
+                      <div class="text-left">
+                        <div class="text-sm font-bold text-gray-800"><%= reviewer ? reviewer.nama : 'Unknown' %></div>
+                        <div class="text-xs text-gray-500">Submitted</div>
+                      </div>
+                    </div>
+                    <i class="fas fa-chevron-down text-gray-400 transition-transform duration-200" id="icon-<%= index %>"></i>
+                  </button>
+                  
+                  <div id="content-<%= index %>" class="hidden border-t border-gray-100 bg-gray-50 p-4">
+                    <% 
+                      let peerTotal = 0;
+                      let peerParentCount = 0;
+                    %>
+                    <% assessment.template.components.forEach(parent => { %>
+                      <div class="mb-3 last:mb-0">
+                        <h5 class="text-xs font-bold text-gray-500 uppercase mb-2 flex justify-between">
+                          <span><%= parent.name %></span>
+                          <% 
+                            // Calculate parent average for this peer
+                            let pSum = 0;
+                            let cCount = 0;
+                            parent.children.forEach(child => {
+                                const s = pa.scores.find(sc => sc.componentId.toString() === child._id.toString());
+                                if(s && !isNaN(parseFloat(s.value))) {
+                                    pSum += parseFloat(s.value);
+                                    cCount++;
+                                }
+                            });
+                            const pAvg = cCount > 0 ? (pSum / cCount) : 0;
+                            if (cCount > 0) {
+                                peerTotal += pAvg;
+                                peerParentCount++;
+                            }
+                          %>
+                          <span class="text-blue-600"><%= pAvg.toFixed(2) %></span>
+                        </h5>
+                        <div class="space-y-1">
+                          <% parent.children.forEach(child => { %>
+                            <% const score = pa.scores.find(s => s.componentId.toString() === child._id.toString()); %>
+                            <div class="flex justify-between text-sm">
+                              <span class="text-gray-600"><%= child.name %></span>
+                              <span class="font-bold text-gray-800"><%= score ? score.value : '-' %></span>
+                            </div>
+                          <% }) %>
+                        </div>
+                      </div>
+                    <% }) %>
+                    <div class="mt-3 pt-3 border-t border-gray-200 flex justify-between items-center font-bold text-gray-800">
+                        <span>Total Average</span>
+                        <span class="text-blue-600 text-lg"><%= peerParentCount > 0 ? (peerTotal / peerParentCount).toFixed(2) : '0.00' %></span>
+                    </div>
+                    <% if (pa.note) { %>
+                        <div class="mt-3 p-3 bg-yellow-50 border border-yellow-100 rounded text-sm text-gray-700 italic">
+                            "<%= pa.note %>"
+                        </div>
+                    <% } %>
+                  </div>
+                </div>
+              <% }) %>
+            </div>
+          <% } %>
+          
+          <% if (assessment.adminPeer && assessment.adminPeerInput) { %>
+            <hr class="my-4 border-gray-200">
+            <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Admin Peer Feedback</h4>
+            <div class="bg-white rounded-lg border border-gray-200 shadow-sm p-3 space-y-3">
+              <div>
+                <div class="text-xs font-semibold text-gray-600 mb-1">Approval Status</div>
+                <div class="text-sm font-bold <%= assessment.adminPeerInput.approved ? 'text-green-700' : 'text-red-700' %>">
+                  <%= assessment.adminPeerInput.approved ? '✓ Approved' : '✗ Not Approved' %>
+                </div>
+              </div>
+              <% if (assessment.adminPeerInput.feedback) { %>
+              <div>
+                <div class="text-xs font-semibold text-gray-600 mb-1">Feedback</div>
+                <div class="text-sm text-gray-700 bg-gray-50 p-2 rounded border border-gray-100 max-h-32 overflow-y-auto">
+                  <%= assessment.adminPeerInput.feedback %>
+                </div>
+              </div>
+              <% } %>
+            </div>
+          <% } %>
+        </div>
+      </div>
+    <% } %>
+  </div>
+
+  <script>
+    function updateOutput(input) {
+      input.dataset.set = 'true';
+      const output = input.parentElement.nextElementSibling.querySelector('.output-val');
+      if (output) output.textContent = input.value;
+    }
+
+    function toggleAccordion(index) {
+      const content = document.getElementById('content-' + index);
+      const icon = document.getElementById('icon-' + index);
+      
+      if (content.classList.contains('hidden')) {
+        content.classList.remove('hidden');
+        icon.classList.add('rotate-180');
+      } else {
+        content.classList.add('hidden');
+        icon.classList.remove('rotate-180');
+      }
+    }
+
+    function enableEdit() {
+      const fieldset = document.getElementById('formFieldset');
+      const submitBtn = document.getElementById('submitBtn');
+      const editBtn = document.getElementById('editBtn');
+      
+      fieldset.disabled = false;
+      fieldset.classList.remove('opacity-60', 'pointer-events-none');
+      submitBtn.classList.remove('hidden');
+      
+      editBtn.innerHTML = '<i class="fas fa-unlock"></i> Editing...';
+      editBtn.classList.remove('bg-yellow-500', 'hover:bg-yellow-600');
+      editBtn.classList.add('bg-gray-500', 'cursor-default');
+      editBtn.disabled = true;
+    }
+
+    function calculateAverages() {
+      let totalScore = 0;
+      let parentCount = 0;
+
+      document.querySelectorAll('.parent-card').forEach(parentCard => {
+        let parentSum = 0;
+        let childCount = 0;
+        
+         parentCard.querySelectorAll('.input-score').forEach(input => {
+           const val = parseFloat(input.value);
+           const isSet = input.dataset.set === 'true';
+           if (!isSet || isNaN(val)) return;
+           parentSum += val;
+           childCount++;
+         });
+
+        const avg = childCount > 0 ? (parentSum / childCount).toFixed(2) : '0.00';
+        const avgDisplay = parentCard.querySelector('[id^="avg-parent-"]');
+        if (avgDisplay) avgDisplay.textContent = avg;
+        
+        if (childCount > 0) {
+            totalScore += parseFloat(avg);
+            parentCount++;
+        }
+      });
+      
+      const finalScore = parentCount > 0 ? (totalScore / parentCount).toFixed(2) : '0.00';
+      document.getElementById('total-score-display').textContent = finalScore;
+    }
+
+    async function handleSubmit(event) {
+      event.preventDefault();
+      const form = event.target;
+      const submitBtn = form.querySelector('button[type="submit"]');
+      const originalText = submitBtn.innerHTML;
+      
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+
+      try {
+        const formData = new FormData(form);
+        const response = await fetch(form.action, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams(formData)
+        });
+
+        if (response.ok) {
+          showToast('Assessment saved successfully!');
+          setTimeout(() => { window.location.href = '/cockpit'; }, 1500);
+        } else {
+          showToast('Error saving assessment', true);
+        }
+      } catch (error) {
+        console.error(error);
+        showToast('Network error', true);
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = originalText;
+      }
+      return false;
+    }
+
+    function showToast(message, isError = false) {
+      const toast = document.getElementById('toast');
+      const msgSpan = document.getElementById('toast-message');
+      msgSpan.textContent = message;
+      toast.classList.remove('hidden', 'bg-green-500', 'bg-red-500');
+      toast.classList.add(isError ? 'bg-red-500' : 'bg-green-500');
+      toast.classList.remove('translate-x-full');
+      setTimeout(() => {
+        toast.classList.add('translate-x-full');
+        setTimeout(() => toast.classList.add('hidden'), 300);
+      }, 3000);
+    }
+
+    function enableValidatorEdit() {
+      const fieldset = document.getElementById('validatorFieldset');
+      const btn = document.getElementById('enableValidatorBtn');
+      if (!fieldset || !btn) return;
+      const confirmed = confirm('Ubah keputusan validator yang sudah ada?');
+      if (!confirmed) return;
+      fieldset.removeAttribute('disabled');
+      fieldset.classList.remove('opacity-70', 'pointer-events-none');
+      btn.classList.add('hidden');
+    }
+
+    function confirmValidatorAction(currentStatus) {
+      if (currentStatus && currentStatus !== 'PENDING') {
+        return confirm('Status validator sudah ditetapkan. Yakin ingin menggantinya?');
+      }
+      return true;
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        if (typeof TomSelect !== 'undefined') {
+          document.querySelectorAll('.search-select').forEach((el) => {
+              new TomSelect(el, {
+                  create: false,
+                  sortField: { field: "text", direction: "asc" }
+              });
+          });
+        }
+
+        document.getElementById('total-score-display').textContent = '<%= (initialScoreDisplay || 0).toFixed(2) %>';
+        setTimeout(calculateAverages, 200);
+        <% if (toastMessage) { %>
+          showToast('<%= toastMessage === 'peer-feedback-saved' ? 'Testimoni peer berhasil disimpan' : (toastMessage === 'validator-updated' ? 'Keputusan validator diperbarui' : toastMessage) %>');
+        <% } %>
+    });
+  </script>
+</body>
+</html>

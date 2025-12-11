@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>SEPAKAT - Matrix Templates</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body class="bg-gray-100 font-sans">
+  <div class="flex h-screen overflow-hidden">
+    <%- include('partials/admin_sidebar', { page: 'templates' }) %>
+    
+    <div class="flex-1 flex flex-col overflow-hidden">
+      <header class="bg-white shadow-sm z-10 px-6 py-4">
+        <h1 class="text-2xl font-bold text-gray-800">Matrix Templates</h1>
+      </header>
+
+      <main class="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100 p-6">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <!-- Create Form -->
+          <div class="lg:col-span-2">
+            <div class="bg-white rounded-xl shadow-sm p-6">
+              <h2 class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                <i class="fas fa-plus-circle text-blue-500"></i> Create New Template
+              </h2>
+              
+              <form action="/admin/templates" method="POST" id="matrixForm" class="space-y-4">
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Template Name</label>
+                  <input type="text" name="name" placeholder="e.g., Evaluasi Kinerja Guru 2024" required
+                         class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition">
+                </div>
+                
+                <div id="components-container" class="space-y-4">
+                  <!-- Parent Components will be added here -->
+                </div>
+
+                <button type="button" onclick="addParent()" 
+                        class="w-full py-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 hover:border-blue-500 hover:text-blue-500 transition flex items-center justify-center gap-2">
+                  <i class="fas fa-layer-group"></i> Add Parent Component
+                </button>
+                
+                <div class="pt-4 border-t border-gray-100">
+                  <input type="hidden" name="jsonInput" id="jsonInput">
+                  <button type="submit" onclick="prepareSubmission()" 
+                          class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg shadow-lg transition transform hover:-translate-y-0.5">
+                    Create Template
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+
+          <!-- List -->
+          <div>
+            <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+              <div class="px-6 py-4 border-b border-gray-100 bg-gray-50">
+                <h2 class="font-bold text-gray-800">Existing Templates</h2>
+              </div>
+              <div class="divide-y divide-gray-100">
+                <% templates.forEach(t => { %>
+                  <div class="p-4 hover:bg-gray-50 transition flex justify-between items-center group">
+                    <div>
+                      <div class="flex items-center gap-2 mb-1">
+                        <h3 class="font-medium text-gray-900"><%= t.name %></h3>
+                        <span class="px-2 py-0.5 text-xs font-medium rounded-full <%= t.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800' %>">
+                          <%= t.isActive ? 'Active' : 'Inactive' %>
+                        </span>
+                      </div>
+                      <p class="text-sm text-gray-500"><%= t.components.length %> Parent Components</p>
+                    </div>
+                    <div class="flex gap-2 opacity-0 group-hover:opacity-100 transition">
+                      <a href="/admin/templates/<%= t._id %>/edit" class="p-2 text-blue-600 hover:bg-blue-50 rounded">
+                        <i class="fas fa-edit"></i>
+                      </a>
+                      <form action="/admin/templates/<%= t._id %>/delete" method="POST" onsubmit="return confirm('Are you sure? This might affect existing assessments.');">
+                        <button type="submit" class="p-2 text-red-600 hover:bg-red-50 rounded">
+                          <i class="fas fa-trash"></i>
+                        </button>
+                      </form>
+                    </div>
+                  </div>
+                <% }) %>
+                <% if (templates.length === 0) { %>
+                  <div class="p-8 text-center text-gray-400">No templates found</div>
+                <% } %>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <script>
+    let parentCount = 0;
+
+    function addParent() {
+      parentCount++;
+      const container = document.getElementById('components-container');
+      const div = document.createElement('div');
+      div.className = 'parent-block bg-gray-50 rounded-lg border border-gray-200 p-4 relative group';
+      div.dataset.id = parentCount;
+      
+      div.innerHTML = `
+        <div class="flex justify-between items-center mb-3">
+          <input type="text" class="parent-name bg-transparent border-b border-gray-300 focus:border-blue-500 outline-none font-bold text-gray-700 placeholder-gray-400 w-2/3" placeholder="Parent Component Name" required>
+          <button type="button" onclick="this.closest('.parent-block').remove()" class="text-red-400 hover:text-red-600 transition">
+            <i class="fas fa-trash"></i>
+          </button>
+        </div>
+        
+        <div class="children-container space-y-2 pl-4 border-l-2 border-gray-200" id="children-container-${parentCount}">
+          <!-- Children go here -->
+        </div>
+        
+        <button type="button" onclick="addChild(${parentCount})" class="mt-3 text-sm text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1">
+          <i class="fas fa-plus"></i> Add Child
+        </button>
+      `;
+      
+      container.appendChild(div);
+    }
+
+    function addChild(parentId) {
+      const container = document.getElementById(`children-container-${parentId}`);
+      const div = document.createElement('div');
+      div.className = 'child-block bg-white p-3 rounded border border-gray-200 shadow-sm flex flex-wrap gap-2 items-center';
+      
+      div.innerHTML = `
+        <input type="text" class="child-name flex-1 min-w-[150px] px-2 py-1 border border-gray-300 rounded text-sm focus:border-blue-500 outline-none" placeholder="Child Name" required>
+        
+        <select class="child-type px-2 py-1 border border-gray-300 rounded text-sm focus:border-blue-500 outline-none bg-gray-50" onchange="toggleConstraints(this)">
+          <option value="rating">Rating (1-N)</option>
+          <option value="range">Range (0-100)</option>
+          <option value="text">Text</option>
+        </select>
+        
+        <div class="constraints flex gap-1 items-center">
+          <input type="number" class="min-val w-16 px-2 py-1 border border-gray-300 rounded text-sm" placeholder="Min" value="1">
+          <span class="text-gray-400">-</span>
+          <input type="number" class="max-val w-16 px-2 py-1 border border-gray-300 rounded text-sm" placeholder="Max" value="5">
+        </div>
+        
+        <button type="button" onclick="this.closest('.child-block').remove()" class="text-gray-400 hover:text-red-500 ml-1">
+          <i class="fas fa-times"></i>
+        </button>
+      `;
+      
+      container.appendChild(div);
+    }
+
+    function toggleConstraints(selectElem) {
+      const constraintsDiv = selectElem.nextElementSibling;
+      if (selectElem.value === 'text') {
+        constraintsDiv.style.display = 'none';
+      } else {
+        constraintsDiv.style.display = 'flex';
+      }
+    }
+
+    function prepareSubmission() {
+      const form = document.getElementById('matrixForm');
+      const name = form.querySelector('input[name="name"]').value;
+      const parentBlocks = document.querySelectorAll('.parent-block');
+      
+      const components = [];
+      
+      parentBlocks.forEach(pBlock => {
+        const pName = pBlock.querySelector('.parent-name').value;
+        const children = [];
+        
+        pBlock.querySelectorAll('.child-block').forEach(cBlock => {
+          const cName = cBlock.querySelector('.child-name').value;
+          const cType = cBlock.querySelector('.child-type').value;
+          
+          const childObj = {
+            name: cName,
+            type: cType,
+            constraints: {}
+          };
+          
+          if (cType !== 'text') {
+            childObj.constraints.min = parseInt(cBlock.querySelector('.min-val').value) || 0;
+            childObj.constraints.max = parseInt(cBlock.querySelector('.max-val').value) || 0;
+          }
+          
+          children.push(childObj);
+        });
+        
+        if (pName) {
+          components.push({
+            name: pName,
+            children: children
+          });
+        }
+      });
+      
+      const finalObj = {
+        name: name,
+        components: components
+      };
+      
+      document.getElementById('jsonInput').value = JSON.stringify(finalObj);
+    }
+  </script>
+</body>
+</html>

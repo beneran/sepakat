@@ -1,0 +1,415 @@
+<head>
+  <title>SEPAKAT - Assignments</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <link href="https://cdn.jsdelivr.net/npm/tom-select/dist/css/tom-select.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/tom-select/dist/js/tom-select.complete.min.js"></script>
+  <style>
+    .ts-control { border-radius: 0.5rem; padding: 0.5rem 0.75rem; border-color: #d1d5db; }
+    .ts-wrapper.single .ts-control { box-shadow: none; }
+  </style>
+</head>
+<body class="bg-gray-100 font-sans">
+  <!-- Detail Modal -->
+  <div id="detailModal" class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden items-center justify-center z-50">
+    <div class="bg-white rounded-xl shadow-xl max-w-2xl w-full m-4 max-h-[90vh] flex flex-col">
+      <div class="p-6 border-b border-gray-100 flex justify-between items-center">
+        <h3 class="text-xl font-bold text-gray-800">Assessment Details</h3>
+        <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600"><i class="fas fa-times text-xl"></i></button>
+      </div>
+      <div class="p-6 overflow-y-auto" id="modalContent">
+        <!-- Content injected via JS -->
+        <div class="flex justify-center"><i class="fas fa-spinner fa-spin text-blue-500 text-2xl"></i></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="flex h-screen overflow-hidden">
+    <%- include('partials/admin_sidebar', { page: 'assignments' }) %>
+    
+    <div class="flex-1 flex flex-col overflow-hidden">
+      <header class="bg-white shadow-sm z-10 px-6 py-4">
+        <h1 class="text-2xl font-bold text-gray-800">Assessment Assignments</h1>
+      </header>
+
+      <main class="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100 p-6">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <!-- Create Form -->
+          <div class="lg:col-span-1">
+            <div class="bg-white rounded-xl shadow-sm p-6 sticky top-6">
+              <h2 class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                <i class="fas fa-user-plus text-blue-500"></i> New Assignment
+              </h2>
+              
+              <form action="/admin/assignments" method="POST" class="space-y-4">
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Candidate</label>
+                  <select name="candidate" required class="search-select">
+                    <option value="">Select Candidate...</option>
+                    <% users.filter(u => u.role === 'user').forEach(u => { %>
+                      <option value="<%= u._id %>"><%= u.nama %> (<%= u.jabatan %>)</option>
+                    <% }) %>
+                  </select>
+                </div>
+                
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Main Reviewer (Pejabat Penilai)</label>
+                  <select name="mainReviewer" required class="search-select">
+                    <option value="">Select Reviewer...</option>
+                    <% users.filter(u => u.role === 'user').forEach(u => { %>
+                      <option value="<%= u._id %>"><%= u.nama %> (<%= u.jabatan %>)</option>
+                    <% }) %>
+                  </select>
+                </div>
+
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Validator (Optional)</label>
+                  <select name="validator" class="search-select">
+                    <option value="">Select Validator...</option>
+                    <% users.filter(u => u.role === 'user').forEach(u => { %>
+                      <option value="<%= u._id %>"><%= u.nama %> (<%= u.jabatan %>)</option>
+                    <% }) %>
+                  </select>
+                </div>
+
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Admin Peer (Signer Only)</label>
+                  <select name="adminPeer" class="search-select">
+                    <option value="">Select Peer...</option>
+                    <% users.filter(u => u.role === 'user').forEach(u => { %>
+                      <option value="<%= u._id %>"><%= u.nama %> (<%= u.jabatan %>)</option>
+                    <% }) %>
+                  </select>
+                </div>
+                
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Template</label>
+                  <select name="template" required class="search-select">
+                    <option value="">Select Template...</option>
+                    <% templates.forEach(t => { %>
+                      <option value="<%= t._id %>"><%= t.name %></option>
+                    <% }) %>
+                  </select>
+                </div>
+
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Weight Matrix (Bobot)</label>
+                  <select name="weightMatrix" required class="search-select">
+                    <option value="">Select Weight Matrix...</option>
+                    <% weights.forEach(w => { %>
+                      <option value="<%= w._id %>"><%= w.name %></option>
+                    <% }) %>
+                  </select>
+                </div>
+                
+                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg shadow-lg transition transform hover:-translate-y-0.5">
+                  Assign Assessment
+                </button>
+              </form>
+            </div>
+          </div>
+
+          <!-- List -->
+          <div class="lg:col-span-2">
+              <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+               <div class="px-6 py-4 border-b border-gray-100 bg-gray-50 flex flex-wrap justify-between items-center gap-3">
+                 <h2 class="font-bold text-gray-800">Active Assessments</h2>
+                 <div class="flex items-center gap-2 flex-wrap">
+                   <form action="/admin/users/refresh-all-tokens" method="POST">
+                     <button type="submit" class="bg-yellow-500 hover:bg-yellow-600 text-white text-sm font-bold py-2 px-3 rounded shadow transition flex items-center gap-2">
+                       <i class="fas fa-sync-alt"></i> Refresh All Tokens
+                     </button>
+                   </form>
+                   <form action="/admin/assignments/export" method="GET" class="flex items-center gap-2">
+                     <select name="template" class="border border-gray-300 rounded-lg text-sm px-2 py-1">
+                       <option value="all">All Templates</option>
+                       <% templates.forEach(t => { %>
+                         <option value="<%= t._id %>"><%= t.name %></option>
+                       <% }) %>
+                     </select>
+                     <button type="submit" class="bg-green-600 hover:bg-green-700 text-white text-sm font-bold py-2 px-3 rounded shadow transition flex items-center gap-2">
+                       <i class="fas fa-file-excel"></i> Export
+                     </button>
+                   </form>
+                 </div>
+               </div>
+               <div class="px-6 py-3 border-b border-gray-100 bg-white flex flex-wrap gap-3 items-center">
+                 <div>
+                   <label class="text-xs text-gray-500">Filter Template</label>
+                   <select id="filter-template" class="border border-gray-300 rounded-lg text-sm px-2 py-1">
+                     <option value="all">All</option>
+                     <% templates.forEach(t => { %>
+                       <option value="<%= t._id %>"><%= t.name %></option>
+                     <% }) %>
+                   </select>
+                 </div>
+                 <div>
+                   <label class="text-xs text-gray-500">Filter Status</label>
+                   <select id="filter-status" class="border border-gray-300 rounded-lg text-sm px-2 py-1">
+                     <option value="all">All</option>
+                     <option value="PENDING">Pending</option>
+                     <option value="IN_PROGRESS">In Progress</option>
+                     <option value="WAITING_VALIDATION">Waiting Validation</option>
+                     <option value="APPROVED">Approved</option>
+                     <option value="REJECTED">Rejected</option>
+                     <option value="COMPLETED">Completed</option>
+                   </select>
+                 </div>
+               </div>
+              <div class="overflow-x-auto">
+                <table class="w-full text-left">
+                  <thead class="bg-gray-50 text-gray-500 text-xs uppercase">
+                    <tr>
+                      <th class="px-6 py-3 font-medium">Candidate</th>
+                      <th class="px-6 py-3 font-medium">Reviewer</th>
+                      <th class="px-6 py-3 font-medium">Reviewer Token</th>
+                      <th class="px-6 py-3 font-medium">Status</th>
+                      <th class="px-6 py-3 font-medium text-right">Score</th>
+                      <th class="px-6 py-3 font-medium text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-gray-100">
+                    <% assessments.forEach(a => { %>
+                      <%
+                        let statusClass = 'bg-gray-100 text-gray-800';
+                        let statusText = a.status;
+                        let statusKey = a.status;
+                        
+                         const hasMain = !!(a.mainAssessment && a.mainAssessment.scores && a.mainAssessment.scores.length);
+                         const hasPeer = !a.adminPeer || (a.adminPeerInput && a.adminPeerInput.feedback);
+
+                         if (a.status === 'COMPLETED') {
+                             if (a.validatorStatus === 'APPROVED') {
+                                 statusClass = 'bg-green-100 text-green-800';
+                                 statusText = 'Disetujui Validator';
+                                 statusKey = 'APPROVED';
+                             } else if (a.validatorStatus === 'REJECTED') {
+                                 statusClass = 'bg-red-100 text-red-800';
+                                 statusText = 'Ditolak Validator';
+                                 statusKey = 'REJECTED';
+                             } else if (a.validator) {
+                                 statusClass = 'bg-purple-100 text-purple-800';
+                                 statusText = `Menunggu Validator (${a.validator.nama})`;
+                                 statusKey = 'WAITING_VALIDATION';
+                             } else {
+                                 statusClass = 'bg-green-100 text-green-800';
+                                 statusText = 'Selesai';
+                                 statusKey = 'COMPLETED';
+                             }
+                         } else if (a.status === 'IN_PROGRESS') {
+                             // First check: if peer required but not submitted
+                             if (!hasPeer && a.adminPeer) {
+                                 statusClass = 'bg-blue-100 text-blue-800';
+                                 statusText = 'Menunggu Testimoni Peer';
+                                 statusKey = 'IN_PROGRESS';
+                             }
+                             // Second check: if main reviewer not submitted (but peer is done)
+                             else if (!hasMain) {
+                                 if (a.adminPeer) {
+                                     statusClass = 'bg-blue-100 text-blue-800';
+                                     statusText = 'Menunggu Penilaian Pejabat Penilai';
+                                     statusKey = 'IN_PROGRESS';
+                                 } else {
+                                     statusClass = 'bg-blue-100 text-blue-800';
+                                     statusText = 'Menunggu Penilaian';
+                                     statusKey = 'IN_PROGRESS';
+                                 }
+                             }
+                             // Third check: if validator waiting (main is done)
+                             else if (a.validator && a.validatorStatus === 'PENDING') {
+                                 statusClass = 'bg-purple-100 text-purple-800';
+                                 statusText = `Menunggu Validator (${a.validator.nama})`;
+                                 statusKey = 'WAITING_VALIDATION';
+                             } else {
+                                 statusClass = 'bg-blue-100 text-blue-800';
+                                 statusText = 'Penilaian Selesai';
+                                 statusKey = 'IN_PROGRESS';
+                             }
+                         } else {
+                             statusClass = 'bg-yellow-100 text-yellow-800';
+                             statusText = 'Menunggu Penilaian';
+                             statusKey = 'PENDING';
+                         }
+                      %>
+                      <tr class="hover:bg-gray-50 transition" data-row-type="assessment" data-template="<%= a.template ? a.template._id : '' %>" data-status="<%= statusKey %>">
+                          <td class="px-6 py-4">
+                            <div class="font-medium text-gray-900"><%= a.candidate ? a.candidate.nama : 'Unknown' %></div>
+                            <div class="text-xs text-gray-500"><%= a.template ? a.template.name : 'Unknown' %></div>
+                          <% if (a.validator) { %>
+                            <div class="text-xs text-gray-500 mt-1">Validator: <span class="font-medium text-gray-700"><%= a.validator.nama %></span></div>
+                          <% } %>
+                          <% if (a.adminPeer) { %>
+                            <div class="text-xs text-gray-500">Testimoni Peer: <span class="font-medium text-gray-700"><%= a.adminPeer.nama %></span></div>
+                          <% } %>
+                        </td>
+                        <td class="px-6 py-4 text-sm text-gray-600">
+                          <%= a.mainReviewer ? a.mainReviewer.nama : 'Unknown' %>
+                        </td>
+                        <td class="px-6 py-4">
+                          <div class="flex items-center gap-2">
+                            <span class="font-mono bg-gray-100 px-2 py-1 rounded text-sm select-all"><%= a.mainReviewer && a.mainReviewer.token ? a.mainReviewer.token : 'N/A' %></span>
+                            <% if (a.mainReviewer) { %>
+                            <form action="/admin/users/<%= a.mainReviewer._id %>/refresh-token" method="POST" class="inline">
+                              <button type="submit" class="text-blue-600 hover:text-blue-800" title="Refresh Token">
+                                <i class="fas fa-sync-alt"></i>
+                              </button>
+                            </form>
+                            <% } %>
+                          </div>
+                        </td>
+                        <td class="px-6 py-4">
+                          <span class="px-2 py-1 text-xs font-medium rounded-full <%= statusClass %>">
+                            <%= statusText %>
+                          </span>
+                        </td>
+                        <td class="px-6 py-4 text-right font-bold text-gray-800">
+                          <%= a.finalScore ? a.finalScore.toFixed(2) : '-' %>
+                        </td>
+                        <td class="px-6 py-4 text-right">
+                          <div class="flex justify-end items-center gap-2 h-full">
+                            <button onclick="viewDetails('<%= a._id %>')" class="text-blue-600 hover:bg-blue-50 p-2 rounded transition" title="View Details">
+                              <i class="fas fa-eye"></i>
+                            </button>
+                            <a href="/admin/assignments/<%= a._id %>/print" target="_blank" class="text-gray-600 hover:bg-gray-50 p-2 rounded transition" title="Print/Download PDF">
+                              <i class="fas fa-print"></i>
+                            </a>
+                            <form action="/admin/assignments/<%= a._id %>/delete" method="POST" onsubmit="return confirm('Delete this assessment?');" class="inline-flex">
+                              <button type="submit" class="text-red-600 hover:bg-red-50 p-2 rounded transition" title="Delete">
+                                <i class="fas fa-trash"></i>
+                              </button>
+                            </form>
+                          </div>
+                        </td>
+                      </tr>
+                    <% }) %>
+                    <% if (assessments.length === 0) { %>
+                      <tr>
+                        <td colspan="5" class="px-6 py-8 text-center text-gray-400">No assessments found</td>
+                      </tr>
+                    <% } %>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <script>
+    // Initialize Tom Select
+    document.querySelectorAll('.search-select').forEach((el) => {
+      new TomSelect(el, {
+        create: false,
+        sortField: {
+          field: "text",
+          direction: "asc"
+        }
+      });
+    });
+
+    function closeModal() {
+      document.getElementById('detailModal').classList.add('hidden');
+      document.getElementById('detailModal').classList.remove('flex');
+    }
+
+    async function viewDetails(id) {
+      const modal = document.getElementById('detailModal');
+      const content = document.getElementById('modalContent');
+      
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+      content.innerHTML = '<div class="flex justify-center p-10"><i class="fas fa-spinner fa-spin text-blue-500 text-3xl"></i></div>';
+      
+      try {
+        const res = await fetch(`/admin/assignments/${id}/details`);
+        const data = await res.json();
+        
+        let html = `
+          <div class="space-y-4">
+            <div class="grid grid-cols-2 gap-4 text-sm">
+              <div><span class="text-gray-500">Candidate:</span> <span class="font-medium">${data.candidate.nama}</span></div>
+              <div><span class="text-gray-500">Reviewer:</span> <span class="font-medium">${data.mainReviewer.nama}</span></div>
+              <div><span class="text-gray-500">Template:</span> <span class="font-medium">${data.template.name}</span></div>
+              <div><span class="text-gray-500">Status:</span> <span class="font-medium">${data.status}</span></div>
+            </div>
+            
+            <div class="border-t border-gray-100 pt-4">
+              <h4 class="font-bold text-gray-800 mb-2">Score Breakdown</h4>
+        `;
+        
+        if (data.mainAssessment && data.mainAssessment.scores && data.mainAssessment.scores.length > 0) {
+           // We need to map scores to component names. 
+           // Since we only have the ID in scores, and template structure in template.
+           // We can iterate the template.
+           
+           data.template.components.forEach(parent => {
+             // Calculate Parent Average
+             let pSum = 0;
+             let cCount = 0;
+             parent.children.forEach(child => {
+                const score = data.mainAssessment.scores.find(s => s.componentId === child._id);
+                if(score && !isNaN(parseFloat(score.value))) {
+                    pSum += parseFloat(score.value);
+                    cCount++;
+                }
+             });
+             const pAvg = cCount > 0 ? (pSum / cCount).toFixed(2) : '0.00';
+
+             html += `
+                <div class="mb-4 border border-gray-200 rounded-lg overflow-hidden">
+                    <div class="bg-gray-50 p-3 flex justify-between items-center border-b border-gray-200">
+                        <span class="font-bold text-gray-700">${parent.name}</span>
+                        <span class="bg-blue-100 text-blue-800 text-xs font-bold px-2 py-1 rounded">Avg: ${pAvg}</span>
+                    </div>
+                    <div class="p-2 bg-white">
+             `;
+             
+             parent.children.forEach(child => {
+               const score = data.mainAssessment.scores.find(s => s.componentId === child._id);
+               html += `
+                 <div class="flex justify-between text-sm py-2 px-2 border-b border-gray-50 last:border-0 hover:bg-gray-50">
+                   <span class="text-gray-600">${child.name}</span>
+                   <span class="font-mono font-bold text-gray-800">${score ? score.value : '-'}</span>
+                 </div>
+               `;
+             });
+             html += `</div></div>`;
+           });
+           
+           html += `
+             <div class="mt-6 flex justify-end items-center gap-4 p-4 bg-blue-50 rounded-lg border border-blue-100">
+                <span class="text-gray-600 font-medium uppercase tracking-wide text-sm">Final Score Calculation</span>
+                <span class="text-3xl font-bold text-blue-600">${data.finalScore ? data.finalScore.toFixed(2) : 'N/A'}</span>
+             </div>
+           `;
+        } else {
+          html += `<p class="text-gray-400 italic">No scores submitted yet.</p>`;
+        }
+        
+        html += `</div></div>`;
+        content.innerHTML = html;
+        
+      } catch (e) {
+        content.innerHTML = '<p class="text-red-500">Error loading details</p>';
+      }
+    }
+
+    const templateFilter = document.getElementById('filter-template');
+    const statusFilter = document.getElementById('filter-status');
+    function applyFilters() {
+      const tVal = templateFilter.value;
+      const sVal = statusFilter.value;
+      document.querySelectorAll('tr[data-row-type="assessment"]').forEach(row => {
+        const matchTemplate = tVal === 'all' || row.dataset.template === tVal;
+        const matchStatus = sVal === 'all' || row.dataset.status === sVal;
+        row.style.display = (matchTemplate && matchStatus) ? '' : 'none';
+      });
+    }
+    templateFilter.addEventListener('change', applyFilters);
+    statusFilter.addEventListener('change', applyFilters);
+    applyFilters();
+  </script>
+</body>
+</html>
